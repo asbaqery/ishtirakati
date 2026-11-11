@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
-import { friendlyError, subscriptionsApi } from '../lib/api';
+import { friendlyError, subscriptionsApi, type SubscriptionsApi } from '../lib/api';
 import { byNextRenewal, daysLabel, formatKwd, monthlyFils, monthlyTotal, todayIso, type Subscription, type SubscriptionInput } from '../lib/subscriptions';
 import { SubscriptionForm } from './SubscriptionForm';
 
@@ -9,8 +9,9 @@ const SOON_DAYS = 7;
 const fmtDate = (iso: string) =>
   new Intl.DateTimeFormat('ar-KW', { day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(`${iso}T00:00:00Z`));
 
-export function Dashboard({ db, email }: { db: SupabaseClient; email: string }) {
-  const api = useMemo(() => subscriptionsApi(db), [db]);
+/** api قابل للتبديل في الاختبارات فقط؛ في الموقع يجي من Supabase */
+export function Dashboard({ db, email, api: injected }: { db: SupabaseClient; email: string; api?: SubscriptionsApi }) {
+  const api = useMemo(() => injected ?? subscriptionsApi(db), [db, injected]);
   const [subs, setSubs] = useState<Subscription[]>([]);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [loadError, setLoadError] = useState('');
