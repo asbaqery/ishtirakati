@@ -70,6 +70,7 @@ describe('Dashboard (main flow)', () => {
     fillForm(addForm, { name: 'iCloud', price: '12', cycle: 'yearly', date: '2027-03-01' });
     fireEvent.click(within(addForm).getByRole('button', { name: 'أضف الاشتراك' }));
     await waitFor(() => expect(total()).toBe('4.500 د.ك'));
+    expect(screen.getByTestId('yearly-total').textContent).toBe('54.000 د.ك');
     expect(within(soon).queryByText('iCloud')).toBeNull();
 
     // الترتيب: الأقرب تجديدًا أول
@@ -133,6 +134,42 @@ describe('Dashboard (main flow)', () => {
     expect((await screen.findByRole('alert')).textContent).toContain('الإنترنت');
     fireEvent.click(screen.getByRole('button', { name: 'جرب مرة ثانية' }));
     expect(await screen.findByText(/ما عندك اشتراكات للحين/)).toBeTruthy();
+  });
+
+  it('shows no fake zero while loading or after a load error', async () => {
+    const { api } = fakeApi();
+    let fail: (e: Error) => void = () => {};
+    api.list = vi.fn(() => new Promise<never>((_, reject) => { fail = reject; }));
+    render(<Dashboard db={db} email="me@example.com" api={api} />);
+    expect(total()).toBe('—');
+    fail(new TypeError('Failed to fetch'));
+    await screen.findByRole('alert');
+    expect(total()).toBe('—');
+  });
+
+  it('opens edit with the same upcoming date the list shows', async () => {
+    const { api } = fakeApi([{ id: 'a', name: 'Gym', price_fils: 15000, cycle: 'monthly', next_renewal: '2026-09-20' }]);
+    render(<Dashboard db={db} email="me@example.com" api={api} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'تعديل Gym' }));
+    const form = screen.getByRole('form', { name: 'تعديل Gym' });
+    expect((within(form).getByLabelText('تاريخ التجديد الجاي') as HTMLInputElement).value).toBe('2026-11-20');
+  });
+
+  it('a slow save does not close another row being edited', async () => {
+    const { api } = fakeApi([
+      { id: 'a', name: 'Gym', price_fils: 15000, cycle: 'monthly', next_renewal: '2026-12-01' },
+      { id: 'b', name: 'Shahid', price_fils: 2000, cycle: 'monthly', next_renewal: '2026-12-05' },
+    ]);
+    let finish: () => void = () => {};
+    const realUpdate = api.update;
+    api.update = vi.fn((id: string, input: SubscriptionInput) => new Promise<Subscription>((res) => { finish = () => res(realUpdate(id, input)); }));
+    render(<Dashboard db={db} email="me@example.com" api={api} />);
+    fireEvent.click(await screen.findByRole('button', { name: 'تعديل Gym' }));
+    fireEvent.click(within(screen.getByRole('form', { name: 'تعديل Gym' })).getByRole('button', { name: 'احفظ التعديل' }));
+    fireEvent.click(screen.getByRole('button', { name: 'تعديل Shahid' }));
+    finish();
+    await screen.findByText('انحفظ التعديل');
+    expect(screen.getByRole('form', { name: 'تعديل Shahid' })).toBeTruthy();
   });
 
   it('rolls a passed renewal date forward', async () => {

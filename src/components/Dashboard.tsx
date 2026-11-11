@@ -1,7 +1,7 @@
-import { useCallback, useEffect, useMemo, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { friendlyError, subscriptionsApi, type SubscriptionsApi } from '../lib/api';
-import { byNextRenewal, daysLabel, formatKwd, monthlyFils, monthlyTotal, todayIso, type Subscription, type SubscriptionInput } from '../lib/subscriptions';
+import { byNextRenewal, daysLabel, formatKwd, monthlyFils, monthlyTotal, todayIso, yearlyTotal, type Subscription, type SubscriptionInput } from '../lib/subscriptions';
 import { SubscriptionForm } from './SubscriptionForm';
 
 const SOON_DAYS = 7;
@@ -15,7 +15,12 @@ export function Dashboard({ db, email, api: injected }: { db: SupabaseClient; em
   const [subs, setSubs] = useState<Subscription[]>([]);
   const [status, setStatus] = useState<'loading' | 'ready' | 'error'>('loading');
   const [loadError, setLoadError] = useState('');
-  const [editing, setEditing] = useState<string | null>(null);
+  const [editing, setEditingState] = useState<string | null>(null);
+  const editingRef = useRef<string | null>(null);
+  const setEditing = (id: string | null) => {
+    editingRef.current = id;
+    setEditingState(id);
+  };
   const [notice, setNotice] = useState<string | null>(null);
 
   const load = useCallback(async () => {
@@ -52,10 +57,24 @@ export function Dashboard({ db, email, api: injected }: { db: SupabaseClient; em
   };
 
   const save = async (id: string, input: SubscriptionInput) => {
-    const updated = await wrap(() => api.update(id, input));
+    let updated: Subscription;
+    try {
+      updated = await wrap(() => api.update(id, input));
+    } catch (err) {
+      // إذا المستخدم فتح تعديل اشتراك ثاني أثناء الحفظ، نعرض الخطأ كتنبيه
+      if (editingRef.current !== id) flash((err as Error).message);
+      throw err;
+    }
     setSubs((s) => s.map((x) => (x.id === id ? updated : x)));
-    setEditing(null);
+    // نسكر النموذج بس إذا هو نفسه اللي انحفظ
+    if (editingRef.current === id) setEditing(null);
     flash('انحفظ التعديل');
+  };
+
+  // إذا فشل إلغاء الجلسة من السيرفر (انقطاع مثلًا) نمسحها من هالجهاز على الأقل
+  const signOut = async () => {
+    const { error } = await db.auth.signOut();
+    if (error) await db.auth.signOut({ scope: 'local' });
   };
 
   const remove = async (s: Subscription) => {
@@ -73,6 +92,8 @@ export function Dashboard({ db, email, api: injected }: { db: SupabaseClient; em
   const rows = byNextRenewal(subs, today);
   const soon = rows.filter((r) => r.days <= SOON_DAYS);
   const total = monthlyTotal(subs);
+  // الأرقام تظهر بس بعد ما تنحمّل القائمة، عشان ما نعرض صفر غلط
+  const ready = status === 'ready';
 
   return (
     <div className="mx-auto max-w-3xl px-4 pb-16 pt-6">
@@ -81,20 +102,28 @@ export function Dashboard({ db, email, api: injected }: { db: SupabaseClient; em
           <h1 className="text-2xl font-bold text-slate-900">اشتراكاتي</h1>
           <p className="text-xs text-slate-500" dir="ltr">{email}</p>
         </div>
-        <button type="button" className="btn-ghost text-sm" onClick={() => void db.auth.signOut()}>تسجيل خروج</button>
+        <button type="button" className="btn-ghost text-sm" onClick={() => void signOut()}>تسجيل خروج</button>
       </header>
 
       <section aria-label="الملخص" className="mb-6 grid grid-cols-2 gap-3">
         <div className="card bg-slate-900 text-white">
           <p className="text-sm text-slate-300">تدفع بالشهر</p>
-          <p className="mt-1 text-2xl font-bold" data-testid="monthly-total">{formatKwd(total)}</p>
+          <p className="mt-1 text-2xl font-bold" data-testid="monthly-total">{ready ? formatKwd(total) : '—'}</p>
         </div>
         <div className="card">
-          <p className="text-sm text-slate-500">بالسنة تقريبًا</p>
-          <p className="mt-1 text-2xl font-bold text-slate-900">{formatKwd(total * 12)}</p>
-          <p className="mt-1 text-xs text-slate-500">{subs.length} اشتراك</p>
+          <p className="text-sm text-slate-500">بالسنة</p>
+          <p className="mt-1 text-2xl font-bold text-slate-900" data-testid="yearly-total">{ready ? formatKwd(yearlyTotal(subs)) : '—'}</p>
+          <p className="mt-1 text-xs text-slate-500">{ready ? `${subs.length} اشتراك` : ''}</p>
         </div>
       </section>
+
+      {status === 'loading' && <p className="mb-6 text-center text-slate-500">نحمّل اشتراكاتك…</p>}
+      {status === 'error' && (
+        <div role="alert" className="card mb-6 text-center">
+          <p className="text-red-700">{loadError}</p>
+          <button type="button" className="btn-ghost mt-3" onClick={() => void load()}>جرب مرة ثانية</button>
+        </div>
+      )}
 
       <section className="card mb-6">
         <h2 className="mb-3 text-lg font-bold text-slate-900">أضف اشتراك</h2>
@@ -103,15 +132,7 @@ export function Dashboard({ db, email, api: injected }: { db: SupabaseClient; em
 
       {notice && <p role="status" className="fixed inset-x-4 bottom-4 z-10 mx-auto max-w-sm rounded-xl bg-slate-900 px-4 py-3 text-center text-sm text-white shadow-lg">{notice}</p>}
 
-      {status === 'loading' && <p className="py-8 text-center text-slate-500">نحمّل اشتراكاتك…</p>}
-      {status === 'error' && (
-        <div role="alert" className="card text-center">
-          <p className="text-red-700">{loadError}</p>
-          <button type="button" className="btn-ghost mt-3" onClick={() => void load()}>جرب مرة ثانية</button>
-        </div>
-      )}
-
-      {status === 'ready' && (
+      {ready && (
         <>
           <section className="mb-6" aria-labelledby="soon-title">
             <h2 id="soon-title" className="mb-3 text-lg font-bold text-slate-900">التجديدات الجاية خلال {SOON_DAYS} أيام</h2>

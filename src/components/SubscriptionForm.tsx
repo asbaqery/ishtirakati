@@ -1,5 +1,5 @@
 import { useState, type FormEvent } from 'react';
-import { MAX_NAME, todayIso, validateInput, type Subscription, type SubscriptionInput } from '../lib/subscriptions';
+import { MAX_NAME, todayIso, upcomingRenewal, validateInput, type Subscription, type SubscriptionInput } from '../lib/subscriptions';
 
 interface Props {
   initial?: Subscription;
@@ -13,7 +13,8 @@ export function SubscriptionForm({ initial, onSubmit, onCancel }: Props) {
   const [name, setName] = useState(initial?.name ?? '');
   const [price, setPrice] = useState(initial ? priceText(initial.price_fils) : '');
   const [cycle, setCycle] = useState<string>(initial?.cycle ?? 'monthly');
-  const [nextRenewal, setNextRenewal] = useState(initial?.next_renewal ?? todayIso());
+  // في التعديل نعرض نفس التاريخ القادم اللي شافه المستخدم في القائمة
+  const [nextRenewal, setNextRenewal] = useState(initial ? upcomingRenewal(initial, todayIso()) : todayIso());
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
 

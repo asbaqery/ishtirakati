@@ -27,10 +27,10 @@ const DATE_RE = /^(\d{4})-(\d{2})-(\d{2})$/;
 
 /** يحول نصًا مثل "3.5" أو "٣٫٥" إلى فلس. يرجع null لأي قيمة غير صالحة. */
 export function parseKwd(raw: string): number | null {
-  const s = raw
-    .trim()
-    .replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)))
-    .replace(/[٫,]/g, '.');
+  const t = raw.trim().replace(/[٠-٩]/g, (d) => String('٠١٢٣٤٥٦٧٨٩'.indexOf(d)));
+  // "1,200" ممكن تكون ألف ومية أو دينار وفلوس، فنرفضها بدل ما نخمّن
+  if (/,\d{3}$/.test(t)) return null;
+  const s = t.replace(/[٫,]/g, '.');
   if (!/^\d{1,5}(\.\d{1,3})?$/.test(s)) return null;
   const [whole, frac = ''] = s.split('.');
   const fils = Number(whole) * 1000 + Number(frac.padEnd(3, '0'));
@@ -46,8 +46,14 @@ export function monthlyFils(s: Pick<Subscription, 'price_fils' | 'cycle'>): numb
   return s.cycle === 'yearly' ? Math.round(s.price_fils / 12) : s.price_fils;
 }
 
+/** نقرّب مرة وحدة على المجموع، مو على كل اشتراك */
 export function monthlyTotal(subs: Pick<Subscription, 'price_fils' | 'cycle'>[]): number {
-  return subs.reduce((sum, s) => sum + monthlyFils(s), 0);
+  return Math.round(subs.reduce((sum, s) => sum + (s.cycle === 'yearly' ? s.price_fils / 12 : s.price_fils), 0));
+}
+
+/** المجموع السنوي بالضبط: الشهري × 12 والسنوي كما هو */
+export function yearlyTotal(subs: Pick<Subscription, 'price_fils' | 'cycle'>[]): number {
+  return subs.reduce((sum, s) => sum + (s.cycle === 'yearly' ? s.price_fils : s.price_fils * 12), 0);
 }
 
 export function isValidDate(iso: string): boolean {

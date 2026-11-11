@@ -39,7 +39,7 @@ export function friendlyError(err: unknown): string {
   if (/password should be at least|weak password/i.test(msg)) return 'كلمة المرور ضعيفة. استخدم 8 أحرف أو أكثر.';
   if (/invalid email|unable to validate email/i.test(msg)) return 'الإيميل مو صحيح.';
   if (/rate limit|too many/i.test(msg)) return 'محاولات وايد. انتظر شوي وجرب مرة ثانية.';
-  if (/failed to fetch|network/i.test(msg)) return 'ما قدرنا نوصل للسيرفر. شيك على الإنترنت.';
+  if (/failed to fetch|load failed|network/i.test(msg)) return 'ما قدرنا نوصل للسيرفر. شيك على الإنترنت.';
   if (/jwt|not authenticated|row-level security/i.test(msg)) return 'انتهت جلستك. سجّل دخول مرة ثانية.';
   return 'صار خطأ. جرب مرة ثانية.';
 }

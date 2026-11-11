@@ -21,7 +21,8 @@ export function AuthForm({ db }: { db: SupabaseClient }) {
         const { error } = await db.auth.signInWithPassword({ email: email.trim(), password });
         if (error) throw error;
       } else {
-        const { data, error } = await db.auth.signUp({ email: email.trim(), password });
+        // رابط التأكيد يرجع لنفس الموقع اللي سجل منه المستخدم
+        const { data, error } = await db.auth.signUp({ email: email.trim(), password, options: { emailRedirectTo: window.location.origin } });
         if (error) throw error;
         // Supabase يرجع مستخدم بلا هويات إذا الإيميل مسجل من قبل
         if (data.user && data.user.identities?.length === 0) throw new Error('already registered');

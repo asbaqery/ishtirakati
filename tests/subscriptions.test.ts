@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import {
-  byNextRenewal, daysBetween, daysLabel, formatKwd, isValidDate, monthlyFils, monthlyTotal,
+  yearlyTotal, byNextRenewal, daysBetween, daysLabel, formatKwd, isValidDate, monthlyFils, monthlyTotal,
   parseKwd, todayIso, upcomingRenewal, validateInput, type Subscription,
 } from '../src/lib/subscriptions';
 import { friendlyError } from '../src/lib/api';
@@ -11,7 +11,7 @@ describe('parseKwd', () => {
   it.each([
     ['3.5', 3500], ['3.500', 3500], ['0.250', 250], ['12', 12000], ['٣٫٥', 3500], ['2,75', 2750], [' 1.1 ', 1100],
   ])('parses %s', (raw, fils) => expect(parseKwd(raw)).toBe(fils));
-  it.each(['', '0', '0.000', '-1', '1.2345', 'abc', '1e3', '100000', '3.5.1'])('rejects %s', (raw) => expect(parseKwd(raw)).toBeNull());
+  it.each(['', '0', '0.000', '-1', '1.2345', 'abc', '1e3', '100000', '3.5.1', '1,200', '2,500', '12,000'])('rejects %s', (raw) => expect(parseKwd(raw)).toBeNull());
 });
 
 describe('money', () => {
@@ -24,6 +24,12 @@ describe('money', () => {
   it('sums the monthly total', () => {
     expect(monthlyTotal([{ price_fils: 3500, cycle: 'monthly' }, { price_fils: 24000, cycle: 'yearly' }])).toBe(5500);
     expect(monthlyTotal([])).toBe(0);
+  });
+  it('rounds the monthly total once and keeps the yearly total exact', () => {
+    const two = [{ price_fils: 5000, cycle: 'yearly' as const }, { price_fils: 5000, cycle: 'yearly' as const }];
+    expect(monthlyTotal(two)).toBe(833);
+    expect(yearlyTotal(two)).toBe(10000);
+    expect(yearlyTotal([{ price_fils: 3500, cycle: 'monthly' }, { price_fils: 24000, cycle: 'yearly' }])).toBe(66000);
   });
 });
 
@@ -91,6 +97,7 @@ describe('friendlyError', () => {
     expect(friendlyError({ message: 'Invalid login credentials' })).toBe('الإيميل أو كلمة المرور غلط.');
     expect(friendlyError(new Error('User already registered'))).toContain('مسجل');
     expect(friendlyError(new TypeError('Failed to fetch'))).toContain('الإنترنت');
+    expect(friendlyError(new TypeError('Load failed'))).toContain('الإنترنت');
     expect(friendlyError({ message: 'new row violates row-level security policy' })).toContain('سجّل دخول');
     expect(friendlyError('something odd')).toBe('صار خطأ. جرب مرة ثانية.');
   });
