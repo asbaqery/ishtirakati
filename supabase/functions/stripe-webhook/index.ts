@@ -42,7 +42,9 @@ Deno.serve(async (req) => {
     const session = event.data.object as Stripe.Checkout.Session;
     const dealId = session.metadata?.deal_id ?? '';
     const piId = typeof session.payment_intent === 'string' ? session.payment_intent : session.payment_intent?.id;
-    if (!UUID_RE.test(dealId) || !piId) return json({ error: 'missing deal or payment' }, 400);
+    // حساب Stripe التجريبي مشترك مع مشروع ثاني: جلسة بدون صفقة مو لنا، نتجاهلها بدون خطأ
+    if (!UUID_RE.test(dealId)) return json({ ignored: 'not a Daman checkout' });
+    if (!piId) return json({ error: 'missing payment' }, 400);
 
     const pi = await stripe.paymentIntents.retrieve(piId);
     const { data: deal, error } = await db
