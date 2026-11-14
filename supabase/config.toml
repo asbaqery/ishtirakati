@@ -1,0 +1,9 @@
+# كل دالة تتحقق بنفسها: create-checkout وdeal-action من توكن المستخدم، وstripe-webhook من توقيع Stripe
+[functions.create-checkout]
+verify_jwt = false
+
+[functions.deal-action]
+verify_jwt = false
+
+[functions.stripe-webhook]
+verify_jwt = false

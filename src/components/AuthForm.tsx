@@ -2,7 +2,8 @@ import { useState, type FormEvent } from 'react';
 import type { SupabaseClient } from '@supabase/supabase-js';
 import { friendlyError } from '../lib/api';
 
-export function AuthForm({ db }: { db: SupabaseClient }) {
+/** compact: داخل صفحة الصفقة بدون العنوان الكبير */
+export function AuthForm({ db, compact = false }: { db: SupabaseClient; compact?: boolean }) {
   const [mode, setMode] = useState<'login' | 'signup'>('login');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -21,8 +22,9 @@ export function AuthForm({ db }: { db: SupabaseClient }) {
         const { error } = await db.auth.signInWithPassword({ email: email.trim(), password });
         if (error) throw error;
       } else {
-        // رابط التأكيد يرجع لنفس الموقع اللي سجل منه المستخدم
-        const { data, error } = await db.auth.signUp({ email: email.trim(), password, options: { emailRedirectTo: window.location.origin } });
+        // رابط التأكيد يرجع لنفس الصفحة (مثل رابط الصفقة) بدون باراميترات
+        const back = `${window.location.origin}${window.location.pathname}`;
+        const { data, error } = await db.auth.signUp({ email: email.trim(), password, options: { emailRedirectTo: back } });
         if (error) throw error;
         // Supabase يرجع مستخدم بلا هويات إذا الإيميل مسجل من قبل
         if (data.user && data.user.identities?.length === 0) throw new Error('already registered');
@@ -36,12 +38,8 @@ export function AuthForm({ db }: { db: SupabaseClient }) {
   };
 
   return (
-    <div className="mx-auto max-w-md px-4 py-10">
-      <div className="mb-8 text-center">
-        <h1 className="text-3xl font-bold text-slate-900">اشتراكاتي</h1>
-        <p className="mt-2 text-slate-600">اعرف كم تدفع على اشتراكاتك بالشهر، ومتى ينخصم كل واحد.</p>
-      </div>
-      <form onSubmit={submit} className="card space-y-4" noValidate>
+    <div className={compact ? '' : 'mx-auto max-w-md'}>
+      <form onSubmit={submit} className={compact ? 'space-y-4' : 'card space-y-4'} noValidate aria-label="تسجيل الدخول">
         <div className="grid grid-cols-2 gap-1 rounded-xl bg-slate-100 p-1 text-sm font-semibold" role="tablist">
           {(['login', 'signup'] as const).map((m) => (
             <button
@@ -80,7 +78,6 @@ export function AuthForm({ db }: { db: SupabaseClient }) {
           {busy ? 'لحظة…' : mode === 'login' ? 'دخول' : 'سوّ حسابي'}
         </button>
       </form>
-      <p className="mt-4 text-center text-xs text-slate-500">ما نطلب بيانات بطاقتك، ولا نربط مع البنك.</p>
     </div>
   );
 }
