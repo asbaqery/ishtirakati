@@ -18,8 +18,9 @@ export function corsHeaders(req: Request): Record<string, string> {
   };
 }
 
+// رد 204 (مثل طلب OPTIONS) ما يقبل محتوى
 export const reply = (req: Request, data: unknown, status = 200) =>
-  new Response(JSON.stringify(data), { status, headers: corsHeaders(req) });
+  new Response(status === 204 ? null : JSON.stringify(data), { status, headers: corsHeaders(req) });
 
 export function adminClient() {
   const url = Deno.env.get('SUPABASE_URL');
